@@ -1,0 +1,24 @@
+---
+
+- hosts: partner
+  remote_user: ubuntu
+
+  roles:
+    - partner
+
+
+  pre_tasks:
+    - name: Set vm hostname
+      command: hostnamectl set-hostname {{ inventory_hostname }}
+      become: yes
+
+    - name: Install git
+      apt:
+        pkg: git
+        state: present
+      become: yes
+
+    - name: Run dpkg configure
+      command: >
+        dpkg --configure -a
+      become: yes

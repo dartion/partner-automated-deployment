@@ -1,0 +1,6 @@
+---
+- name: Install required system dependencies
+  apt:
+    pkg: ['python3-pip', 'libpq-dev', 'python3-dev', 'policykit-1', 'postfix']
+    state: present
+  become: yes

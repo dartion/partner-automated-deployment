@@ -1,0 +1,21 @@
+---
+
+# By Default set clean_install to false, so by default ansible runs without clean_install
+clean_install: false
+
+# Github repo for Partner; Ansible uses ssh to clone the repository
+partner_git_repo: git@github.com:dartion/partner.git
+
+# Github branch to clone, by default it should pull the master branch
+partner_project_git_tag: master
+
+partner_project_private_key_file: /home/ubuntu/.ssh/id_rsa
+
+# Project root - Desitnation where the project is installed on the target virtual machine
+partner_project_root: "/var/www/partner"
+
+# Service file PATH
+partner_service_files_path: "/etc/systemd/system"
+
+#Populate with sample database
+sample_data: false

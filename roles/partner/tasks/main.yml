@@ -1,0 +1,218 @@
+---
+
+- import_tasks: ./system_dependencies.yml
+
+- name:  Create project root
+  file:
+    path: "{{ partner_project_root }}"
+    state: directory
+    owner: ubuntu
+    group: ubuntu
+    mode: 0755
+  become: yes
+
+- name: check if service file exists
+  stat:
+    path: "{{ partner_service_files_path }}/partner.service"
+  register: service_file
+
+- name: Stop serving uWSGI if its Running
+  command: >
+    service partner stop
+    warn=False
+  when: service_file.stat.exists == True
+  become: yes
+
+#Install (uWSGI) python package.
+- name: Install pip3 requirements
+  command: >
+    pip3 install uwsgi
+  args:
+    chdir: "{{ partner_project_root }}"
+  become: yes
+
+- name: Pull source code from git
+  git:
+    repo: "{{ partner_git_repo }}"
+    dest: "{{ partner_project_root }}"
+    version: "{{ partner_project_git_tag }}"
+    force: yes
+    accept_hostkey: yes
+    key_file: "{{ partner_project_private_key_file }}"
+
+# - name: Install pip3 requirements
+#   command: >
+#     pip3 install -r requirements.txt --user
+#   args:
+#     chdir: "{{ partner_project_root }}"
+
+- name: Set partner DB host for QA, Staging and Prod environments
+  lineinfile:
+    path: "{{ partner_project_root }}/config.ini"
+    regexp: "^DB_HOST = db$"
+    line: "DB_HOST=127.0.0.1"
+    backrefs: yes
+
+- name: Set partner App Name
+  lineinfile:
+    path: "{{ partner_project_root }}/config.ini"
+    regexp: "^APP_NAME*"
+    line: "APP_NAME = {{ partner_environment }}"
+    backrefs: yes
+
+- name: Set partner DB host for QA, Staging and Prod environments
+  lineinfile:
+    path: "{{ partner_project_root }}/partner/settings.py"
+    regexp: '^ALLOWED_HOSTS\s=\s\[\"web.local\"\]$'
+    line: 'ALLOWED_HOSTS = ["{{ ansible_nodename }}"]'
+
+- name: Set partner DB host for QA, Staging and Prod environments
+  lineinfile:
+    path: "{{ partner_project_root }}/partner/settings.py"
+    regexp: '^EMAIL_HOST\s=\s\"mail.tpg.com.au\"$'
+    line: 'EMAIL_HOST = "nectar-smtp-relay.intersect.org.au"'
+
+- name: Copy partner.ini file to create a socket
+  template:
+    src: partner.ini.j2
+    dest: "{{ partner_project_root }}/partner.ini"
+    owner: ubuntu
+    group: www-data
+  become: yes
+
+- name: Copy partner.service file to serve uWSGI
+  template:
+    src: partner.service.j2
+    dest: "{{ partner_service_files_path }}/partner.service"
+    owner: ubuntu
+    group: www-data
+  become: yes
+
+- name: Remove all data from the database (does not empty database e.g. tables)
+  command: >
+     python3 manage.py flush --no-input
+  args:
+    chdir: "{{ partner_project_root }}"
+  when: clean_install is defined and clean_install | bool 
+
+- name: Run database migrations with Merge
+  command: >
+    python3 manage.py makemigrations --merge --noinput
+  args:
+    chdir: "{{ partner_project_root }}"
+
+- name: Run database migrations
+  command: >
+    python3 manage.py migrate
+  args:
+    chdir: "{{ partner_project_root }}"
+
+- name: Copy Nginx configuration file
+  template:
+    src: partner.j2
+    dest: /etc/nginx/sites-enabled/partner
+  notify: restart nginx
+  become: yes
+
+- name: Remove default NGINX config file
+  file:
+    state: absent
+    path: /etc/nginx/sites-enabled/default
+  become: yes
+
+- name: Start partner app via the service file
+  service:
+    name: partner
+    state: restarted
+  become: yes
+
+- name: Copy postfix main.cf to configure nectar replay host
+  template:
+    src: main.cf.j2
+    dest: "/etc/postfix/main.cf"
+    owner: root
+    group: root
+  become: yes
+
+- name: Create Super user and ignore error if the superuser already exists
+  shell: >
+    echo "from simulator.models import User; User.objects.create_superuser('admin','darshan@intersect.org.au','{{ superuser_password }}')" | python3 manage.py shell
+  args:
+    chdir: "{{ partner_project_root }}"
+    executable: /bin/bash
+  ignore_errors: yes
+  when: clean_install is defined and clean_install | bool 
+
+- name: Seed round data
+  shell: >
+    sh create_rounds.sh
+  args:
+    chdir: "{{ partner_project_root }}/db_init"
+    executable: /bin/bash
+  ignore_errors: yes
+  when: clean_install is defined and clean_install | bool 
+
+- name: Seed sample initial cash flow
+  shell: >
+    sh create_sample_initial_market_flow.sh
+  args:
+    chdir: "{{ partner_project_root }}/db_init"
+    executable: /bin/bash
+  ignore_errors: yes
+  when: clean_install is defined and clean_install | bool and sample_data is defined and sample_data| bool 
+
+- name: Seed sample round 1 data
+  shell: >
+    sh create_sample_round1_market_flow.sh
+  args:
+    chdir: "{{ partner_project_root }}/db_init"
+    executable: /bin/bash
+  ignore_errors: yes
+  when: clean_install is defined and clean_install | bool and sample_data is defined and sample_data| bool 
+
+- name: Seed sample round 2 data
+  shell: >
+    sh create_sample_round2_market_flow.sh
+  args:
+    chdir: "{{ partner_project_root }}/db_init"
+    executable: /bin/bash
+  ignore_errors: yes
+  when: clean_install is defined and clean_install | bool and sample_data is defined and sample_data| bool 
+
+- name: Seed initial cash flow
+  shell: >
+    sh create_initial_cashflow.sh
+  args:
+    chdir: "{{ partner_project_root }}/db_init"
+    executable: /bin/bash
+  ignore_errors: yes
+  when: clean_install is defined and clean_install | bool
+
+- name: Seed initial market flow
+  shell: >
+    sh create_initial_market_flow.sh
+  args:
+    chdir: "{{ partner_project_root }}/db_init"
+    executable: /bin/bash
+  ignore_errors: yes
+  when: clean_install is defined and clean_install | bool
+
+- name: Seed round 2 market flow
+  shell: >
+    sh create_round2_market_flow.sh
+  args:
+    chdir: "{{ partner_project_root }}/db_init"
+    executable: /bin/bash
+  ignore_errors: yes
+  when: clean_install is defined and clean_install | bool
+
+- name: Restart partner app
+  command:
+    service partner restart
+  become: yes
+
+- name: Start/Restart postfix
+  service:
+    name: postfix
+    state: restarted
+  become: yes

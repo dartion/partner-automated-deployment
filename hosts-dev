@@ -1,0 +1,5 @@
+[partner]
+
+[partner:vars]
+ansible_python_interpreter=/usr/bin/python3
+partner_environment=SLV Brahmins Matrimonial Services

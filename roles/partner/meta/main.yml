@@ -1,0 +1,12 @@
+---
+
+dependencies:
+
+  - role: nginx
+    become: yes
+
+  # - role: certbot
+  #   become: yes
+
+  - role: postgresql
+    become: yes

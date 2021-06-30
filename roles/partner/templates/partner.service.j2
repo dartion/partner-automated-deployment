@@ -1,0 +1,13 @@
+[Unit]
+Description=uWSGI instance to serve partner server
+After=network.target
+
+[Service]
+User=ubuntu
+Group=www-data
+WorkingDirectory=/var/www/partner
+ExecStart=/home/ubuntu/.local/bin/uwsgi --ini partner.ini --wsgi-file partner/wsgi.py --uid ubuntu --gid www-data
+#ExecStart=/home/ubuntu/.local/bin/uwsgi --ini partner.ini --wsgi-file partner/wsgi.py --uid ubuntu --gid www-data --logto /var/www/partner/logs/service.logs
+
+[Install]
+WantedBy=multi-user.target

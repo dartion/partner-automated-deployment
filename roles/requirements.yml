@@ -1,0 +1,13 @@
+---
+
+- src: https://github.com/geerlingguy/ansible-role-nginx
+  version: 2.6.2
+  name: nginx
+
+- src: https://github.com/geerlingguy/ansible-role-certbot
+  version: 3.0.0
+  name: certbot
+
+- src: https://github.com/geerlingguy/ansible-role-postgresql
+  version: 1.4.5
+  name: postgresql
